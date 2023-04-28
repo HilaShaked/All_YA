@@ -1,18 +1,26 @@
 import sys
 import socket
+import tkinter
 from random import randint
 import tkinter as tk
 from tkinter import ttk
 from tcp_by_size import recv_by_size, send_with_size
 
 
-field_sep = '@|@'
+FIELD_SEP = '@|@'
 PORT = 1234
 
 aaaa: tk.OptionMenu #or None #= None  # noqa
-option = None
+option: tk.StringVar
 
-enter = False
+entry_granted: bool = False
+
+
+key = 0
+
+server_disconnect = False
+
+user_name = ''
 
 
 def center_window(win):
@@ -86,26 +94,13 @@ def login_and_sign_up_win(sock):
 
     # login_screen(frame)   # noqa E303
     print(list_of_entries)
-    list_of_entries[2]['command'] = lambda: send_loging(list_of_entries[0].get(), list_of_entries[1].get(), sock)
-    list_of_entries[5]['command'] = lambda: send_sign_up(list_of_entries[3].get(), list_of_entries[4].get(), sock)
-
-
-    # root.mainloop()  # noqa E303
+    list_of_entries[2]['command'] = lambda: loging(list_of_entries[0].get(), list_of_entries[1].get(), sock, root)
+    list_of_entries[5]['command'] = lambda: loging(list_of_entries[0].get(), list_of_entries[1].get(), sock, root, True)
+    # list_of_entries[5]['command'] = lambda: send_sign_up(list_of_entries[3].get(), list_of_entries[4].get(), sock, root)
 
 
 
-def send_loging(name: str, pass_: str, sock):
-    print(name, pass_, 'log')
-    if name.strip() != '' and pass_.strip() != '':
-        # send_with_size(sock, '')
-        exchange_key(sock, )
-
-def send_sign_up(name, pass_, sock):  # noqa E302
-    print(name, pass_, 'sin')
-    if name.strip() != '' and pass_.strip() != '':
-        # send_with_size(sock, '')
-        exchange_key(sock, )
-
+    root.mainloop()  # noqa E303
 
 
 def add_the_key_exchange_options(root):  # noqa E303
@@ -173,32 +168,166 @@ def make_login_labels_and_entries(root, xpos):
     return [username, password, submit]  # noqa E303
 
 
-def exchange_key(sock):
-    print(option.get())
-    
+def make_server_error_screen(error_message):
+    # print(len(error_message))
+    if len(error_message) > 29:
+        temp = error_message
+        error_message = ''
+        for i in range(1, len(temp) + 1):
+            error_message += temp[i - 1]
+            if i % 28 == 0:
+                error_message += '\n'
+
+
+    serv_error = tk.Tk()
+    serv_error.title('server error')
+    serv_error.geometry(f'{800}x{500}')
+    serv_error.resizable(False, False)
+    center_window(serv_error)
+    frame = tk.Frame(serv_error)
+    frame['bg'] = '#d37b9e'
+
+    frame.config(cursor='X_cursor')  # just cuz I find it fun
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    err = tk.Label(frame, text=error_message, font=('Calibri', 32), bg=frame['bg'])
+    err.pack(fill='x', padx=100, pady=100)
+
+    butt = tk.Button(frame, font=('Calibri', 16), text='close')
+    butt.place(relx=0.45, rely=0.6, anchor='nw', width=100, height=30)
+
+    butt['command'] = serv_error.quit
+
+    serv_error.protocol("WM_DELETE_WINDOW", serv_error.quit)
+
+    serv_error.mainloop()
 
 
 
-def login_screen(root):  # noqa E303
-    login = tk.Label(root, text='Log In', font=('Calibri', 24), bg=root['bg'])
-    # login.place(relx = 0.25, rely = 0.2, anchor ='nw')
-    login.place(relx=0.5, rely=0.2, anchor='n')
+def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
+    global key
 
-    label = tk.Label(root, text="Don't have an account? ")
-    sign_up = tk.Button(root, text="Sign up", command=lambda: sign_up_screen(root))
+    if actually_sign_up:
+        print(name, pass_, 'sin')
+        to_send = 'sin'
+    else:
+        print(name, pass_, 'log')
+        to_send = 'log'
+
+    name = name.strip()
+    pass_ = pass_.strip()
+    if name == '' or pass_ == '':
+        return
+
+    to_send = to_send, name, pass_
+
+    key = exchange_key(root, sock)
+
+    if key is None:
+        make_server_error_screen('Server disconnected')
+        root.quit()
+        return
+
+    send_to_server(sock, to_send)
 
 
-    label.place(relx=0.5, rely=0.9, anchor='s')  # noqa E303
-    sign_up.place(relx=0.6, rely=0.905, anchor='s')
 
-    root.mainloop()
+# def send_sign_up(name: str, pass_: str, sock, root):
+#     global key
+#
+#     name = name.strip()
+#     pass_ = pass_.strip()
+#     if name == '' and pass_ == '':
+#         return
+#     key = exchange_key(root, sock)
 
 
-def sign_up_screen(root):
-    sign_up = tk.Label(root, text='sign_up', font=('Calibri', 24), bg='light blue')
 
-    sign_up.place(relx=0.68, rely=0.2, anchor='nw')
-    print('worked')
+def exchange_key(root, sock):  # , username, password
+    global entry_granted
+    global key
+
+    exchange_option = option.get()
+    print(exchange_option)
+
+    if exchange_option == 'RSA':
+        key = RSA(sock)
+    else:
+        key = diffie_hellman(sock)
+
+    return key
+
+
+
+
+def RSA(sock):
+    """
+    :return: None if got nothing,
+            usually returns key
+    """
+    num = randint(657, 23651)
+    send_to_server(sock, ('CHELO', num), False)
+    reply = handle_receive(recv_by_size(sock, down_a_line=False))
+    if reply == '':  # if '' so the server disconnected
+        return
+
+    print(f'Debugh: {reply}')
+    num, s_k = reply[0], reply[1]
+
+
+
+
+
+def diffie_hellman(sock):
+    pass
+
+
+
+def send_to_server(sock, cont: tuple, encode: bool = True):
+    cont = FIELD_SEP.join(cont)
+    print(f'Debugh: {cont}')
+    if encode:
+        cont = AES_encrypt(cont)
+
+    print(f'Debug: {cont}')
+    send_with_size(sock, cont)
+
+
+def AES_encrypt(msg):
+    return msg
+
+
+def handle_receive(data):
+    ret = 'Invalid reply from server'
+    try:
+        # reply = reply.decode()
+        if not isinstance(data, bytes):
+            fields = data.split(FIELD_SEP)
+        else:
+            fields = data.decode().split(FIELD_SEP)
+        code = fields[0]
+
+
+        if code in ['ACK', 'SRFIN']:
+            ret = f'Ack. {fields[1]}'
+
+        elif code == 'SHELO':
+            num = fields[1]
+            s_key = (fields[2], [3])
+            return num, s_key
+
+    except Exception as e:
+        print(f'Server replay bad format {e}')
+    return ret
+
+
+def communicate(sock):
+    print('Enter nothing to exit')
+    i = input(f'{user_name} send > ')
+    while i != '':
+        send_to_server(sock, (i,))
+        i = input(f'{user_name} send > ')
+    print('Finish sending...')
 
 
 def main(ip):
@@ -207,22 +336,20 @@ def main(ip):
     s.connect((ip, PORT))
 
     login_and_sign_up_win(s)
-    print('...')
+    print('Finished login')
+    communicate(s)
 
 
 
 
-if __name__ == '__main__':  # noqa E303
-    serv_ip = '127.0.0.1'
-    if len(sys.argv) > 1:
-        serv_ip = sys.argv[1]
-
+def get_into_server(serv_ip):
     i = 0
-    while not enter and i < 10:
+    connected = False
+    while not connected and i < 10:
         i += 1
         try:
             main(serv_ip)
-            enter = True
+            connected = True
         except WindowsError as e:
             if e and e.winerror == 10061:
                 # print('Could not connect to the server')
@@ -232,8 +359,16 @@ if __name__ == '__main__':  # noqa E303
         except Exception as e:
             print(f'Error: {e}')
 
-    if i == 10 and not enter:
+    if i == 10 and not connected:
         print('Could not connect to the server')
+
+
+if __name__ == '__main__':  # noqa E303
+    serv_ip = '127.0.0.1'
+    if len(sys.argv) > 1:
+        serv_ip = sys.argv[1]
+
+    get_into_server(serv_ip)
 
 """
 meep
