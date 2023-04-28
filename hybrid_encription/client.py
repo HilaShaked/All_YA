@@ -5,6 +5,7 @@ from random import randint
 import tkinter as tk
 from tkinter import ttk
 from tcp_by_size import recv_by_size, send_with_size
+from the_encryption_stuff import make_AES_key, AES_encrypt, AES_decrypt
 
 
 FIELD_SEP = '@|@'
@@ -223,13 +224,14 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
 
     to_send = to_send, name, pass_
 
-    key = exchange_key(root, sock)
+    key = exchange_key(sock)
 
     if key is None:
-        make_server_error_screen('Server disconnected')
+        make_server_error_screen('Error at server')
         # root.destroy()
         server_disconnect = True
         return
+
 
     send_to_server(sock, to_send)
 
@@ -246,7 +248,7 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
 
 
 
-def exchange_key(root, sock):  # , username, password
+def exchange_key(sock):  # , username, password
     global entry_granted
     global key
 
@@ -264,7 +266,6 @@ def exchange_key(root, sock):  # , username, password
 
 
 
-
 def RSA(sock):
     """
     :return: None if got nothing,
@@ -272,17 +273,42 @@ def RSA(sock):
     """
     print('Debug: In "RSA"')
 
-    num = randint(657, 23651)
-    send_to_server(sock, ('CHELO', f'{num}'), False)
-    reply = handle_receive(recv_by_size(sock, down_a_line=False))
-    if reply == '':  # if '' so the server disconnected
+    cli_num = randint(657, 23651)
+    send_to_server(sock, ('CHELO', f'{cli_num}'), False)
+    data, size = recv_by_size(sock, down_a_line=False)
+    if data == '' and size == 0:  # if '' so the server disconnected
         return
 
+    reply = handle_receive(data)
+
+
     print(f'Debugh: {reply}')
-    num, s_k = reply[0], reply[1]
+    if isinstance(reply, str):
+        make_server_error_screen(reply)
+        return
 
+    srv_num, n, e = int(reply[0]), int(reply[1][0]), int(reply[1][1])
+    print(f'Debug: num = {srv_num}, server key = {(n, e)}')
 
+    # pms = randint(0, 2**(8*48))
+    pms = randint(2, 2**48)
+    temp = pms
+    print(f'Debug: pms = {pms}')
 
+    ciphertext = ''
+    while pms != 0:
+        i = pms%10
+        pms //= 10
+        ciphertext += f"{i**e % n}"
+
+    print(f'Debug: ciphertext = {ciphertext}')
+
+    send_to_server(sock, ('CKEYX', ciphertext), False)
+
+    # restore pms:
+    pms = temp
+    # import pyaes, pbkdf2, binascii, os, secrets
+    return make_AES_key(pms, cli_num, srv_num)
 
 
 def diffie_hellman(sock):
@@ -296,14 +322,13 @@ def send_to_server(sock, cont: tuple, encode: bool = True):
     cont = FIELD_SEP.join(cont)
     print(f'Debugh (before encrypt): {cont}')
     if encode:
-        cont = AES_encrypt(cont)
+        cont = AES_encrypt(cont, key)
+        temp = AES_decrypt(cont, key)
+        print(f'Debug (check if decrypt works): {temp}')
 
     print(f'Debug (after encrypt): {cont}')
     send_with_size(sock, cont)
 
-
-def AES_encrypt(msg):
-    return msg
 
 
 def handle_receive(data):
@@ -322,7 +347,7 @@ def handle_receive(data):
 
         elif code == 'SHELO':
             num = fields[1]
-            s_key = (fields[2], [3])
+            s_key = (fields[2], fields[3])
             return num, s_key
 
     except Exception as e:

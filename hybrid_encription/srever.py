@@ -4,6 +4,7 @@ import traceback
 from random import randint
 from sympy import randprime
 from tcp_by_size import recv_by_size, send_with_size
+from the_encryption_stuff import calc_d, calc_e, prim_roots, make_AES_key
 
 
 KILL_ALL = False
@@ -19,7 +20,7 @@ Key exchange part:
 
 From client:
 CHELO (client hello) = start of key exchange with RSA. fields: 1- a random number
-CKEYX (client key exchange) = after 'SHELO' message from server. fields: 1- the premaster secret
+CKEYX (client key exchange) = after 'SHELO' message from server. fields: 1- the encrypted premaster secret
 
 
 CKDIF = (client key Diffie Hellman) key exchange with Diffie Hellman. no additional fields
@@ -39,32 +40,7 @@ everything else:
 """
 
 
-# for RSA:
-def calc_d(e, phi):
-    # (d*e)% phi = 1
-    # d*e = phi*x + 1
-    # d = (phi*x + 1) / e
-
-    x = 3
-    # print(x)
-    d = (phi*x + 1) / e
-    while d % 1 != 0:
-        x += 1
-        d = (phi*x + 1) / e
-    # print('check', (d * e) % phi)
-    # print(f'd: {d}, x: {x}')
-    return int(d) # d should have a .0
-
-
-def calc_e(phi):
-    e = randprime(300, 10000)
-    while phi % e == 0:
-        e = randprime(300, 10000)
-
-    return e
-
-
-def RSA():
+def RSA(sock, addr, num_from_cli):
     p = randprime(300, 5000)
     q = randprime(300, 5000)
     n = p * q
@@ -76,28 +52,24 @@ def RSA():
     public_key = (n, e)
     private_key = (n, d)
 
-    print(public_key, private_key)
+    print('public: ', public_key, 'private: ', private_key)
     # print(f'e: {e}, phi: {phi}')
+    ran_num = randint(321, 626232)
+
+    send_data(sock, ('SHELO', ran_num, n, e))
+
+    data = receive_from_client(sock, addr, False)
+    if data is None:
+        return
+
+    pms = parse_receive(data)[0]
+    if pms is None:
+        return
+
+    return make_AES_key(pms, num_from_cli, ran_num)
 
 
-
-def prim_roots(num):
-    o = 1
-    roots_ls = []
-    r = 2
-    while r < num:
-        k = pow(r, o, num)
-        while k > 1:
-            o += 1
-            k = (k * r) % num
-        if o == (num - 1):
-            roots_ls += [r]
-        o = 1
-        r = r + 1
-    return roots_ls
-
-
-def diffie_hellman():
+def diffie_hellman(sock):
     P = randprime(500, 1000)
     # print(P)
     roots = prim_roots(P)
@@ -114,52 +86,97 @@ def diffie_hellman():
 
 
 def send_data(sock, to_send):
-    to_send = FIELD_SEP.join(to_send)
+    sending = []
+    for i in to_send:
+        if not isinstance(i, str):
+            i = str(i)
+        sending += [i]
+    to_send = FIELD_SEP.join(sending)
+    send_with_size(sock, to_send)
 
 
-def handle_request(data):
-    data = data.split(FIELD_SEP)
-    code = data[0]
+def parse_receive(data) -> tuple:
+    try:
+        if not isinstance(data, bytes):
+            fields = data.split(FIELD_SEP)
+        else:
+            fields = data.decode().split(FIELD_SEP)
+        code = fields[0]
+
+
+        if code == 'CHELO':
+            num = int(fields[1])
+            return 'RSA', num
+        elif code == 'CKEYX':
+            num = int(fields[1])
+            return (num, )
+
+        elif code == 'CKDIF':
+            return ('DIFF',)
+
+    except Exception as e:
+        print(f'Client replay bad format: {e}')
+    return (None, )
 
 
 
 
-def check_length(data, size):
+def check_length(message, size_gotten):
+    """
+    check message length
+    return: string - error message
+    """
+    size = len(message)
+    if size < 4:  # 17 is min message size
+        return f'ERRO{FIELD_SEP}Bad Format. Message too short'.encode()
+    if size_gotten != size:
+        return f'ERRO{FIELD_SEP}Bad Format. Incorrect message length'.encode()
+    return b''
+
+
+
+def login(sock, key):
+    """
+    :return: None if client disconnected. True if client username and password in database, False if not
+    """
+
     pass
 
 
-def login(sock):
+def key_exchange(sock, addr):
+    data = receive_from_client(sock, addr, False)
+    if data is None:
+        return
 
-    pass
-
-
-def key_exchange(sock):
-    data, size = recv_by_size(sock)
-    if data == b'' and size == 0:
-        return None
-
-    how_to_exchange = handle_request(data)
+    reply = parse_receive(data)
     # gets a string: 'RSA' if with RSA, 'DIFF' if with Diffie-Hellman
-    if how_to_exchange == 'RSA':
-        return RSA()
-    elif how_to_exchange == 'DIFF':
-        return diffie_hellman()
+    if reply[0] == 'RSA':
+        return RSA(sock, addr, reply[1])
+    elif reply[0] == 'DIFF':
+        return diffie_hellman(sock)
     else:
         return None
 
 
-def receive_from_client():
-    pass
+def receive_from_client(sock, addr, return_size = True):
+    data, size = recv_by_size(sock, addition_before=f'From {addr}: ')
+    if data == b'' and size == 0:
+        data = None
+
+    if return_size:
+        return data, size
+    return data
 
 
 def handle_client(sock, addr):
-    print(f'New Client Connected {addr}')
-    key = key_exchange(sock)
+    print(f'\n\nNew Client Connected {addr}')
+    key = key_exchange(sock, addr)
     can_enter = False
     if key == None:
         print('No key from client')
     else:
-        can_enter = login(sock)
+        while (not can_enter is None) and (not can_enter):  # סוגריים כדי שיהיה נוח לקרוא
+            can_enter = login(sock, key)
 
 
     while can_enter:
@@ -167,8 +184,8 @@ def handle_client(sock, addr):
             print(f'closing connection with {addr}')
             break
         try:
-            data, size = recv_by_size(sock, addition=f" from {addr}:")
-            if data == b'' and size == 0:  # cuz if got a partial message, the data turns to b'' even though the client did not disconnect
+            data, size = receive_from_client(sock, addr)
+            if data is None:
                 print('Seems client disconnected')
                 break
             # logtcp('recv', tid, data)
@@ -176,7 +193,7 @@ def handle_client(sock, addr):
             if err_size != b'':
                 to_send = err_size
             else:
-                to_send = handle_request(data)
+                to_send = parse_receive(data)
 
             if to_send != '':
                 send_data(sock, to_send)
