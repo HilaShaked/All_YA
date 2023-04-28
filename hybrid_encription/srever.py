@@ -4,7 +4,10 @@ import traceback
 from random import randint
 from sympy import randprime
 from tcp_by_size import recv_by_size, send_with_size
-from the_encryption_stuff import calc_d, calc_e, prim_roots, make_AES_key
+from the_encryption_stuff import calc_d, calc_e, decode_pms
+from the_encryption_stuff import prim_roots
+from the_encryption_stuff import  make_AES_key, AES_decrypt, AES_encrypt
+
 
 
 KILL_ALL = False
@@ -41,8 +44,10 @@ everything else:
 
 
 def RSA(sock, addr, num_from_cli):
-    p = randprime(300, 5000)
-    q = randprime(300, 5000)
+    # p = randprime(300, 5000)
+    p = randprime(50, 300)
+    # q = randprime(300, 5000)
+    q = randprime(50, 300)
     n = p * q
     phi = (p-1)*(q-1)
 
@@ -62,9 +67,15 @@ def RSA(sock, addr, num_from_cli):
     if data is None:
         return
 
-    pms = parse_receive(data)[0]
-    if pms is None:
+    reply = parse_receive(data)[0]
+    print(f'Debug: reply = {reply}')
+
+    if reply is None:
         return
+
+    pms = decode_pms(reply, d, n)
+    print(f'Debug: Got out')
+    print(f'Debug: pms = {pms}')
 
     return make_AES_key(pms, num_from_cli, ran_num)
 
@@ -108,8 +119,8 @@ def parse_receive(data) -> tuple:
             num = int(fields[1])
             return 'RSA', num
         elif code == 'CKEYX':
-            num = int(fields[1])
-            return (num, )
+            x = fields[1]
+            return (x, )
 
         elif code == 'CKDIF':
             return ('DIFF',)

@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from tcp_by_size import recv_by_size, send_with_size
 from the_encryption_stuff import make_AES_key, AES_encrypt, AES_decrypt
+from the_encryption_stuff import encode_pms
 
 
 FIELD_SEP = '@|@'
@@ -292,22 +293,13 @@ def RSA(sock):
 
     # pms = randint(0, 2**(8*48))
     pms = randint(2, 2**48)
-    temp = pms
     print(f'Debug: pms = {pms}')
-
-    ciphertext = ''
-    while pms != 0:
-        i = pms%10
-        pms //= 10
-        ciphertext += f"{i**e % n}"
-
+    ciphertext = encode_pms(pms, n, e)
     print(f'Debug: ciphertext = {ciphertext}')
+
 
     send_to_server(sock, ('CKEYX', ciphertext), False)
 
-    # restore pms:
-    pms = temp
-    # import pyaes, pbkdf2, binascii, os, secrets
     return make_AES_key(pms, cli_num, srv_num)
 
 

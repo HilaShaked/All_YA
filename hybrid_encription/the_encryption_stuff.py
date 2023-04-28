@@ -23,11 +23,41 @@ def calc_d(e, phi):
 
 
 def calc_e(phi):
-    e = randprime(300, 10000)
+    # e = randprime(300, 10000)
+    e = randprime(50, 200)
     while phi % e == 0:
-        e = randprime(300, 10000)
+        # e = randprime(300, 10000)
+        e = randprime(50, 200)
 
     return e
+
+
+def encode_pms(pms, n, e):
+    ciphertext = ''
+    while pms != 0:
+        i = pms % 10
+        pms //= 10
+        ciphertext = f"{i ** e % n}-" + ciphertext # to separate each num so I cloud decode it
+        # cuz I don't know how you can decode it otherwise
+
+    return ciphertext[:-1]
+
+
+def decode_pms(ciphertext, d, n):
+    print(f'Debug: In "decode_pms"')
+
+    pms = 0
+    ciphertext = ciphertext.split('-')
+    print(f'Debug: ciphertext = {ciphertext}')
+
+    for i in ciphertext:
+        # print(',', end=' ')
+        pms *= 10
+        pms += int(i)**d % n
+        # print('.', end=' ')
+    print(f'Debug: pms = {pms}')
+    return pms
+
 
 
 # for diffie-hellman
@@ -54,6 +84,7 @@ def make_AES_key(pms, client_num, server_num):
     return key
 
 
+# for AES
 def AES_encrypt(msg, key):
     AES = pyaes.AESModeOfOperationCTR(key)
     return AES.encrypt(msg)
