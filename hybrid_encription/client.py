@@ -185,7 +185,7 @@ def make_server_error_screen(error_message):
     serv_error.resizable(False, False)
     center_window(serv_error)
     frame = tk.Frame(serv_error)
-    frame['bg'] = '#d37b9e'
+    frame['bg'] = '#d37b9e'  # redish pinkish color
 
     frame.config(cursor='X_cursor')  # just cuz I find it fun
     frame.pack(expand=True, fill=tk.BOTH)
@@ -196,16 +196,18 @@ def make_server_error_screen(error_message):
     butt = tk.Button(frame, font=('Calibri', 16), text='close')
     butt.place(relx=0.45, rely=0.6, anchor='nw', width=100, height=30)
 
-    butt['command'] = serv_error.quit
+    butt['command'] = serv_error.destroy
 
-    serv_error.protocol("WM_DELETE_WINDOW", serv_error.quit)
+    serv_error.protocol("WM_DELETE_WINDOW", serv_error.destroy)
 
     serv_error.mainloop()
 
 
 
 def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
-    global key
+    global key, server_disconnect
+
+    print('Debug: In "login"')
 
     if actually_sign_up:
         print(name, pass_, 'sin')
@@ -225,7 +227,8 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
 
     if key is None:
         make_server_error_screen('Server disconnected')
-        root.quit()
+        # root.destroy()
+        server_disconnect = True
         return
 
     send_to_server(sock, to_send)
@@ -247,6 +250,8 @@ def exchange_key(root, sock):  # , username, password
     global entry_granted
     global key
 
+    print('Debug: In "exchange_key"')
+
     exchange_option = option.get()
     print(exchange_option)
 
@@ -265,8 +270,10 @@ def RSA(sock):
     :return: None if got nothing,
             usually returns key
     """
+    print('Debug: In "RSA"')
+
     num = randint(657, 23651)
-    send_to_server(sock, ('CHELO', num), False)
+    send_to_server(sock, ('CHELO', f'{num}'), False)
     reply = handle_receive(recv_by_size(sock, down_a_line=False))
     if reply == '':  # if '' so the server disconnected
         return
@@ -284,12 +291,14 @@ def diffie_hellman(sock):
 
 
 def send_to_server(sock, cont: tuple, encode: bool = True):
+    print('Debug: In "send_to_server"')
+
     cont = FIELD_SEP.join(cont)
-    print(f'Debugh: {cont}')
+    print(f'Debugh (before encrypt): {cont}')
     if encode:
         cont = AES_encrypt(cont)
 
-    print(f'Debug: {cont}')
+    print(f'Debug (after encrypt): {cont}')
     send_with_size(sock, cont)
 
 
@@ -317,7 +326,7 @@ def handle_receive(data):
             return num, s_key
 
     except Exception as e:
-        print(f'Server replay bad format {e}')
+        print(f'Server replay bad format: {e}')
     return ret
 
 
@@ -337,8 +346,11 @@ def main(ip):
 
     login_and_sign_up_win(s)
     print('Finished login')
-    communicate(s)
+    if not server_disconnect:
+        if entry_granted:
+            communicate(s)
 
+    print('Bye!')
 
 
 

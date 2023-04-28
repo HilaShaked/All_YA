@@ -7,12 +7,12 @@ from tcp_by_size import recv_by_size, send_with_size
 
 
 KILL_ALL = False
-field_sep = '@|@'
+FIELD_SEP = '@|@'
 
 """
 Protocol: for login/sign in
 
-field_seperator = '@|@'
+field separator = '@|@'
 
 ------------------------------
 Key exchange part:
@@ -29,7 +29,7 @@ CKDIF = (client key Diffie Hellman) key exchange with Diffie Hellman. no additio
 from server:
 SHELO (server hello) = after 'CHELO' from client. fields: 1- a random number, 2- the n of server's public key
                                                                                 3- the e of server's public key 
-SRFIN (server finish) = an ack after client's 'CKEYX' message. no additional fields
+SRFIN (server finish) = an ack after client's 'CKEYX' message. fields: 1- 'Finished RSA key exchange'
 
 
 ------------------------------
@@ -114,11 +114,14 @@ def diffie_hellman():
 
 
 def send_data(sock, to_send):
-    pass
+    to_send = FIELD_SEP.join(to_send)
 
 
 def handle_request(data):
-    pass
+    data = data.split(FIELD_SEP)
+    code = data[0]
+
+
 
 
 def check_length(data, size):
@@ -131,8 +134,22 @@ def login(sock):
 
 
 def key_exchange(sock):
-    how_to_exchange = handle_request(recv_by_size(sock))
+    data, size = recv_by_size(sock)
+    if data == b'' and size == 0:
+        return None
 
+    how_to_exchange = handle_request(data)
+    # gets a string: 'RSA' if with RSA, 'DIFF' if with Diffie-Hellman
+    if how_to_exchange == 'RSA':
+        return RSA()
+    elif how_to_exchange == 'DIFF':
+        return diffie_hellman()
+    else:
+        return None
+
+
+def receive_from_client():
+    pass
 
 
 def handle_client(sock, addr):
@@ -150,7 +167,7 @@ def handle_client(sock, addr):
             print(f'closing connection with {addr}')
             break
         try:
-            data, size = recv_by_size(sock, addition=" <<< RECV from {addr}:")
+            data, size = recv_by_size(sock, addition=f" from {addr}:")
             if data == b'' and size == 0:  # cuz if got a partial message, the data turns to b'' even though the client did not disconnect
                 print('Seems client disconnected')
                 break
