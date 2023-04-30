@@ -121,7 +121,10 @@ def diffie_hellman(sock):
     #
 
 
-def send_data(sock, addr, to_send, key=0):
+def send_data(sock, addr, to_send, key=0) -> bool:
+    """
+    returns if sending was successful
+    """
     sending = []
     for i in to_send:
         if not isinstance(i, str):
@@ -131,7 +134,12 @@ def send_data(sock, addr, to_send, key=0):
     if key != 0:
         to_send = AES_encrypt(to_send, key)
 
-    send_with_size(sock, to_send, addition_before=f'From {addr}: ')
+    try:
+        send_with_size(sock, to_send, addition_before=f'{addr}: ')
+        return True
+    except ConnectionError:
+        print(f'Client {addr} disconnected')
+        return False
 
 
 def parse_receive(data) -> tuple:
@@ -252,11 +260,13 @@ def key_exchange(sock, addr):
 
 
 def receive_from_client(sock, addr, *, return_size=True, decode=True, key=0):
-
-    if decode:
-        data, size = recv_by_size(sock, addition_before=f'From {addr}: ', return_type='not string')
-    else:
-        data, size = recv_by_size(sock, addition_before=f'From {addr}: ')
+    try:
+        if decode:
+            data, size = recv_by_size(sock, addition_before=f'{addr}: ', return_type='not string')
+        else:
+            data, size = recv_by_size(sock, addition_before=f'{addr}: ')
+    except ConnectionError:
+        data, size = b'', 0
 
     if data == b'' and size == 0:
         data = None
@@ -278,11 +288,14 @@ def handle_client(sock, addr):
     """login part"""
     can_enter = 0
     if key is None:
-        print('No key from client')
+        print(f'---\nNo key from client {addr}\n---')
     else:
         while (can_enter is not None) and (not can_enter):  # סוגריים כדי שיהיה נוח לקרוא
             can_enter, username, msg = login(sock, addr, key)
             print(f'Debug: can_enter = {can_enter}, user = {username}')
+            if can_enter is None:
+                break
+
             to_send = ('ACSES', can_enter, msg)
             send_data(sock, addr, to_send)
 

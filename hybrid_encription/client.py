@@ -110,11 +110,12 @@ def key_exchange_win(sock):
     root = tk.Tk()
     root.title('Key exchange screen')
 
-    root.geometry(f'{1000}x{200}')
+    root.geometry(f'{500}x{200}')
     center_window(root)
 
     frame = tk.Frame(root)
-    frame['bg'] = 'light blue'
+    frame['bg'] = 'dark cyan' #'turquoise' # 'light green'
+
     frame.config(cursor='dot')  # just cuz I find it fun
 
     frame.pack(expand=True, fill=tk.BOTH)
@@ -122,7 +123,9 @@ def key_exchange_win(sock):
     add_the_key_exchange_options(frame)
 
     submit = tk.Button(root, font=('Calibri', 16), text='submit')  # noqa E303
-    submit.place(relx=0.45, rely=0.6, anchor='nw', width=100, height=30)
+    # submit.place(relx=0.45, rely=0.6, anchor='nw', width=100, height=30)
+    submit.place(relx=0.4, rely=0.7, anchor='nw', width=100, height=30)
+
 
 
     submit['command'] = lambda: perform_key_exchange_and_stuff(sock, root)
@@ -136,8 +139,10 @@ def add_the_key_exchange_options(root):  # noqa E303
     global option
 
     # since it's always visible
-    label1 = tk.Label(root, text='select key exchange method: ', font=('Calibri', 16), bg='light blue')
-    label1.place(relx=0.31, rely=0.045, anchor='nw')
+    # label1 = tk.Label(root, text='select key exchange method: ', font=('Calibri', 16), bg='light blue')
+    label1 = tk.Label(root, text='Select key exchange method: ', font=('Calibri', 16), bg=root['bg'], fg='white')
+    # label1.place(relx=0.31, rely=0.045, anchor='nw')
+    label1.place(relx=0.1, rely=0.2, anchor='nw')
     # label1.pack(ipadx=5, ipady=10)
     # label1.pack()
     options = ['Diffie Hellman', 'RSA']
@@ -147,11 +152,12 @@ def add_the_key_exchange_options(root):  # noqa E303
     option_menu['relief'] = 'groov'
     # paddings = {'padx': 5, 'pady': 5}
     # option_menu.grid(column=1, row=1, sticky=tk.E, **paddings)
-    option_menu.place(relx=0.58, rely=0.05, anchor='nw')
+    # option_menu.place(relx=0.58, rely=0.05, anchor='nw')
+    option_menu.place(relx=0.61, rely=0.2, anchor='nw')
     # option_menu.pack()
     # separator = ttk.Separator(root, orient='horizontal')
-    separator = ttk.Separator(root, orient='horizontal')
-    separator.pack(fill='x', pady=70)
+    # separator = ttk.Separator(root, orient='horizontal')
+    # separator.pack(fill='x', pady=70)
 
     global aaaa
     aaaa = option_menu
@@ -200,13 +206,20 @@ def make_login_labels_and_entries(root, xpos):
 def make_server_error_screen(error_message):
     # print(len(error_message))
     # if len(error_message) > 29:
-    if len(error_message) > 32:
-        temp = error_message
-        error_message = ''
-        for i in range(1, len(temp) + 1):
-            error_message += temp[i - 1]
-            if i % 28 == 0:
-                error_message += '\n'
+    if len(error_message) > 24:
+        temp = error_message.split()
+        line_len = 0
+        for i, st in enumerate(temp):
+            line_len += len(st + ' ')
+            # print(line_len)
+            if line_len > 23:
+                temp[i] = '\n' + temp[i]
+                line_len = len(f'{st} ')
+
+        # print(temp)
+        error_message = ' '.join(temp)
+
+
 
 
     serv_error = tk.Tk()
@@ -269,7 +282,7 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
         return
 
 
-    data, size = recv_by_size(sock)
+    data, size = recv_from_server(sock)
 
     if data == '' and size == 0:  # if '' the server disconnected
         server_disconnected = True
@@ -280,7 +293,7 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
     reply = handle_receive(data)
 
     if isinstance(reply, str):
-        make_server_error_screen('Error at server')
+        make_server_error_screen(reply)
 
     access = reply[0] == 'True'
 
@@ -301,7 +314,6 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
 
 
 
-
 # def send_sign_up(name: str, pass_: str, sock, root):
 #     global key
 #
@@ -317,9 +329,7 @@ def perform_key_exchange_and_stuff(sock, root):
 
     exchange_key(sock)
 
-    if key is None:
-        make_server_error_screen('Error at server')
-    if key is None or key == 0:
+    if key == 0:
         root.destroy()
         server_disconnected = True
         return
@@ -360,9 +370,8 @@ def RSA(sock):
     if server_disconnected:
         return 0
 
-    data, size = recv_by_size(sock, down_a_line=False)
+    data, size = recv_from_server(sock)
     if data == '' and size == 0:  # if '' the server disconnected
-        make_server_error_screen('Server disconnected')
         return 0
 
     reply = handle_receive(data)
@@ -388,9 +397,8 @@ def RSA(sock):
         return 0
 
 
-    wait_for_server_ack, size = recv_by_size(sock)
+    wait_for_server_ack, size = recv_from_server(sock)
     if wait_for_server_ack == '' and size == 0:
-        make_server_error_screen('Server disconnected')
         return 0
     ack = handle_receive(wait_for_server_ack)
     print(f'\n{ack[0]} {ack[1]}\n')
@@ -411,22 +419,32 @@ def send_to_server(sock, cont: tuple, encode: bool = True):
     print(f'Debugh (before encrypt): {cont}')
     if encode:
         cont = AES_encrypt(cont, key)
-        temp = AES_decrypt(cont, key)
-        print(f'Debug (check if decrypt works): {temp}')
+        # temp = AES_decrypt(cont, key)
+        # print(f'Debug (check if decrypt works): {temp}')
 
     print(f'Debug (after encrypt): {cont}')
 
     try:
         send_with_size(sock, cont)
     except ConnectionError:
-        make_server_error_screen('server disconnected')
         server_disconnected = True
 
+
+def recv_from_server(sock, recv_encoded=False):
+    if recv_encoded:
+        data, size = recv_by_size(sock, return_type='not string')
+        data = AES_decrypt(data, key)
+        print(f'Debug: data = {data}')
+
+    else:
+        data, size = recv_by_size(sock)
+
+    return data, size
 
 
 
 def handle_receive(data):
-    ret = 'Invalid reply from server'
+    ret = 'Invalid reply from server',
     try:
         # reply = reply.decode()
         if not isinstance(data, bytes):
@@ -438,6 +456,7 @@ def handle_receive(data):
 
         if code in ['ACK', 'SRFIN']:
             ret = f'Ack.', fields[1]
+            print(f'Ack. {fields[1]}')
 
         elif code == 'SHELO':
             num = fields[1]
@@ -458,13 +477,20 @@ def handle_receive(data):
 
 
 def communicate(sock):
+    global server_disconnected
+
     print('Enter nothing to exit')
 
     i = input(f'"{user_name}" send > ')
     while i != '':
         send_to_server(sock, ('MESG', user_name,i))
-        if server_disconnected:
+
+        data, size = recv_from_server(sock, True)
+        if data == '' and size == 0:
+            server_disconnected = True
             break
+
+        handle_receive(data)
 
         i = input(f'"{user_name}" send > ')
 
@@ -478,36 +504,46 @@ def main(ip):
     s.connect((ip, PORT))
 
     key_exchange_win(s)
-    if not server_disconnected:
+
+    if not server_disconnected and key != 0:
         login_and_sign_up_win(s)
         print('Finished login')
+
     if not server_disconnected:
         if entry_granted:
             communicate(s)
+
+    if server_disconnected:
+        make_server_error_screen('Server disconnected')
 
     print('Bye!')
 
 
 
 def get_into_server(serv_ip):
+    amount_of_tries = 10
     i = 0
     connected = False
-    while not connected and i < 10:
+    while not connected and i < amount_of_tries:
         i += 1
         try:
             main(serv_ip)
             connected = True
+            break
+
         except WindowsError as e:
             if e and e.winerror == 10061:
                 # print('Could not connect to the server')
                 print('.', end=' ')
             else:
                 print(f'Error: {e}')
-        except Exception as e:
-            print(f'Error: {e}')
+        # except Exception as e:
+        #     print(f'Error: {e}')
 
-    if i == 10 and not connected:
+    if i == amount_of_tries and not connected:
         print('Could not connect to the server')
+        make_server_error_screen('Could not connect to the server')
+
 
 
 if __name__ == '__main__':  # noqa E303
