@@ -1,9 +1,7 @@
-from random import randint
 from sympy import randprime
 import pbkdf2
-import binascii
 import pyaes
-import os
+
 
 # for RSA:
 def calc_d(e, phi):
@@ -59,6 +57,13 @@ def decode_pms(ciphertext, d, n):
     return pms
 
 
+def make_AES_key(pms, client_num, server_num):
+    key = pbkdf2.PBKDF2(f'{pms}', f'{client_num}', server_num).read(32)
+    # print(len(key))
+
+    return key
+
+
 
 # for diffie-hellman
 def prim_roots(num):
@@ -76,12 +81,6 @@ def prim_roots(num):
         r = r + 1
     return roots_ls
 
-
-def make_AES_key(pms, client_num, server_num):
-    key = pbkdf2.PBKDF2(f'{pms}', f'{client_num}', server_num).read(32)
-    # print(len(key))
-
-    return key
 
 
 # for AES
