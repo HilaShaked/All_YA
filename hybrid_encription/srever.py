@@ -141,8 +141,6 @@ def diffie_hellman(sock, addr):
 
     return make_AES_key(sim_key, P, G)
 
-    
-
 
 
 def send_data(sock, addr, to_send, key=0) -> bool:

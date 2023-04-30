@@ -5,7 +5,6 @@ import tkinter as tk
 from tkinter import ttk
 from tcp_by_size import recv_by_size, send_with_size
 from the_encryption_stuff import make_AES_key, AES_encrypt, AES_decrypt
-from the_encryption_stuff import randprime, prime_roots
 from the_encryption_stuff import encode_pms
 
 
@@ -39,7 +38,7 @@ def center_window(win):
     window_height = win.winfo_height()
 
 
-    center_x = int(screen_width / 2 - window_width / 2)
+    center_x = int(screen_width / 2 - window_width / 2)  # noqa: E303
     center_y = int(screen_height / 2 - window_height / 2)
 
     # set new geometry
@@ -63,11 +62,11 @@ def login_and_sign_up_win(sock):
     # add_the_key_exchange_options(frame)
 
 
-    login = tk.Label(frame, text='Login', font=('Calibri', 32), bg=frame['bg'])  # noqa E303
+    login = tk.Label(frame, text='Login', font=('Calibri', 32), bg=frame['bg'])  # noqa: E303
     login.place(relx=0.2, rely=0.2, anchor='nw')
 
 
-    list_of_entries = make_login_labels_and_entries(frame, 0.2)  # noqa E303
+    list_of_entries = make_login_labels_and_entries(frame, 0.2)  # noqa: E303
 
     separator = ttk.Separator(frame, orient='vertical')  # .grid(row=8, column=5, rowspan=8, sticky='s')
     separator.pack(fill='y', padx=100, pady=20, expand=True)
@@ -94,15 +93,15 @@ def login_and_sign_up_win(sock):
     # notebook.add(frame2, text='sign up')
 
 
-    # login_screen(frame)   # noqa E303
+    # login_screen(frame)   # noqa: E303
     print(list_of_entries)
     list_of_entries[2]['command'] = lambda: loging(list_of_entries[0].get(), list_of_entries[1].get(), sock, root)
-    list_of_entries[5]['command'] = lambda: loging(list_of_entries[0].get(), list_of_entries[1].get(), sock, root, True)
+    list_of_entries[5]['command'] = lambda: loging(list_of_entries[3].get(), list_of_entries[4].get(), sock, root, True)
     # list_of_entries[5]['command'] = lambda: send_sign_up(list_of_entries[3].get(), list_of_entries[4].get(), sock, root)
 
 
 
-    root.mainloop()  # noqa E303
+    root.mainloop()  # noqa: E303
 
 
 def key_exchange_win(sock):
@@ -115,7 +114,7 @@ def key_exchange_win(sock):
     center_window(root)
 
     frame = tk.Frame(root)
-    frame['bg'] = 'dark cyan' #'turquoise' # 'light green'
+    frame['bg'] = 'dark cyan'  # 'turquoise' # 'light green'
 
     frame.config(cursor='dot')  # just cuz I find it fun
 
@@ -123,20 +122,20 @@ def key_exchange_win(sock):
 
     add_the_key_exchange_options(frame)
 
-    submit = tk.Button(root, font=('Calibri', 16), text='submit')  # noqa E303
+    submit = tk.Button(root, font=('Calibri', 16), text='submit')
     # submit.place(relx=0.45, rely=0.6, anchor='nw', width=100, height=30)
     submit.place(relx=0.4, rely=0.7, anchor='nw', width=100, height=30)
 
 
 
-    submit['command'] = lambda: perform_key_exchange_and_stuff(sock, root)
+    submit['command'] = lambda: perform_key_exchange_and_stuff(sock, root)  # noqa: E303
 
     root.mainloop()
 
 
 
 
-def add_the_key_exchange_options(root):  # noqa E303
+def add_the_key_exchange_options(root):  # noqa: E303
     global option
 
     # since it's always visible
@@ -188,7 +187,7 @@ def make_login_labels_and_entries(root, xpos):
     username.place(relx=xpos+0.05, rely=0.365, anchor='nw', width=160, height=30)
 
 
-    label_password = tk.Label(root, text='Password: ', font=('Calibri', 24), bg=root['bg'])  # noqa E303
+    label_password = tk.Label(root, text='Password: ', font=('Calibri', 24), bg=root['bg'])  # noqa: E303
     # label_password.place(relx=0.14, rely=0.45, anchor='nw')
     label_password.place(relx=xpos-0.11, rely=0.45, anchor='nw')
 
@@ -197,11 +196,11 @@ def make_login_labels_and_entries(root, xpos):
     password.place(relx=xpos+0.05, rely=0.466, anchor='nw', width=160, height=30)
 
 
-    submit = tk.Button(root, font=('Calibri', 16), text='submit')  # noqa E303
+    submit = tk.Button(root, font=('Calibri', 16), text='submit')  # noqa: E303
     submit.place(relx=xpos, rely=0.6, anchor='nw', width=100, height=30)
 
 
-    return [username, password, submit]  # noqa E303
+    return [username, password, submit]  # noqa: E303
 
 
 def make_server_error_screen(error_message):
@@ -223,7 +222,7 @@ def make_server_error_screen(error_message):
 
 
 
-    serv_error = tk.Tk()
+    serv_error = tk.Tk()  # noqa: E303
     serv_error.title('server error')
     serv_error.geometry(f'{800}x{500}')
     serv_error.resizable(False, False)
@@ -248,7 +247,7 @@ def make_server_error_screen(error_message):
 
 
 
-def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
+def loging(name: str, pass_: str, sock, root, actually_sign_up=False):  # noqa: E303
     global key, server_disconnected, entry_granted, user_name
 
     print('Debug: In "login"')
@@ -283,7 +282,7 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
         return
 
 
-    data, size = recv_from_server(sock)
+    data, size = recv_from_server(sock)  # noqa: E303
 
     if data == '' and size == 0:  # if '' the server disconnected
         server_disconnected = True
@@ -291,7 +290,7 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
         return
 
 
-    reply = handle_receive(data)
+    reply = handle_receive(data)  # noqa: E303
 
     if isinstance(reply, str):
         make_server_error_screen(reply)
@@ -312,19 +311,6 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
     root.destroy()
 
 
-
-
-
-# def send_sign_up(name: str, pass_: str, sock, root):
-#     global key
-#
-#     name = name.strip()
-#     pass_ = pass_.strip()
-#     if name == '' and pass_ == '':
-#         return
-#     key = exchange_key(root, sock)
-
-
 def perform_key_exchange_and_stuff(sock, root):
     global key, server_disconnected
 
@@ -341,7 +327,7 @@ def perform_key_exchange_and_stuff(sock, root):
 
 
 
-def exchange_key(sock):  # , username, password
+def exchange_key(sock):  # , username, password   # noqa: E303
     global entry_granted
     global key
 
@@ -359,7 +345,7 @@ def exchange_key(sock):  # , username, password
 
 
 
-def RSA(sock):
+def RSA(sock):  # noqa
     """
     :return: 0 if got nothing or an error,
             usually returns key
@@ -378,7 +364,7 @@ def RSA(sock):
     reply = handle_receive(data)
 
 
-    print(f'Debugh: {reply}')
+    print(f'Debugh: {reply}')  # noqa: E303
     if isinstance(reply, str):
         make_server_error_screen(reply)
         return 0
@@ -393,12 +379,12 @@ def RSA(sock):
     print(f'Debug: ciphertext = {ciphertext}')
 
 
-    send_to_server(sock, ('CKEYX', ciphertext), False)
+    send_to_server(sock, ('CKEYX', ciphertext), False)  # noqa: E303
     if server_disconnected:
         return 0
 
 
-    wait_for_server_ack, size = recv_from_server(sock)
+    wait_for_server_ack, size = recv_from_server(sock)  # noqa: E303
     if wait_for_server_ack == '' and size == 0:
         return 0
     ack = handle_receive(wait_for_server_ack)
@@ -415,18 +401,20 @@ def diffie_hellman(sock):
     send_to_server(sock, ('CKDH',), False)
 
 
-    data, size = recv_from_server(sock)
+    data, size = recv_from_server(sock)  # noqa: E303
     if data == '' and size == 0:  # if '' the server disconnected
         return 0
 
-    reply = handle_receive(data)
+    reply: tuple = handle_receive(data)
 
     print(f'Debugh: {reply}')
     if isinstance(reply, str):
         make_server_error_screen(reply)
         return 0
 
-    P, G, server_key = reply[0], reply[1], reply[2]
+    P = reply[0]  # noqa
+    G = reply[1]  # noqa
+    server_key = reply[2]
     print(f'Debug: P = {P}, G = {G}, server key = {server_key}')
     # print(f'Debug: P = {type(P)}, G = {type(G)}, server key = {type(server_key)}')
 
@@ -435,7 +423,7 @@ def diffie_hellman(sock):
     print(f'Debug: public_key = {public_key}, private_key = {private_key}')
 
 
-    send_to_server(sock, ('CDHPK', str(public_key)), False)
+    send_to_server(sock, ('CDHPK', str(public_key)), False)  # noqa: E303
 
     sim_key = int(pow(server_key, private_key, P))
     print(f'Debug: sim_key = {sim_key}')
@@ -450,7 +438,7 @@ def diffie_hellman(sock):
 
 
 
-def send_to_server(sock, cont: tuple, encode: bool = True):
+def send_to_server(sock, cont: tuple, encode: bool = True):  # noqa: E303
     global server_disconnected
     print('Debug: In "send_to_server"')
 
@@ -482,7 +470,7 @@ def recv_from_server(sock, recv_encoded=False):
 
 
 
-def handle_receive(data) -> str or int or tuple:
+def handle_receive(data) -> str or int or tuple:  # noqa: E303
     ret = 'Invalid reply from server',
     try:
         # reply = reply.decode()
@@ -493,7 +481,7 @@ def handle_receive(data) -> str or int or tuple:
         code = fields[0]
 
 
-        if code in ['ACK', 'SRFIN']:
+        if code in ['ACK', 'SRFIN']:  # noqa: E303
             ret = f'Ack.', fields[1]  # additional message
             print(f'Ack. {fields[1]}')
 
@@ -506,14 +494,14 @@ def handle_receive(data) -> str or int or tuple:
             ret = fields[1], fields[2]  # (a string) True or False, additional message
 
         elif code == 'SPGPK':
-            ret = int(fields[1]), int(fields[2]), int(fields[3]) # P, G, public key
+            ret = int(fields[1]), int(fields[2]), int(fields[3])  # P, G, public key
 
         elif code == 'ERROR':
             ret = 'Error', fields[1]
             make_server_error_screen(fields[1])
 
 
-    except Exception as e:
+    except Exception as e:  # noqa: E303
         print(f'Server replay bad format: {e}')
     return ret
 
@@ -525,7 +513,7 @@ def communicate(sock):
 
     i = input(f'"{user_name}" send > ')
     while i != '':
-        send_to_server(sock, ('MESG', user_name,i))
+        send_to_server(sock, ('MESG', user_name, i))
 
         data, size = recv_from_server(sock, True)
         if data == '' and size == 0:
@@ -537,7 +525,7 @@ def communicate(sock):
         i = input(f'"{user_name}" send > ')
 
 
-    print('Finish sending...')
+    print('Finish sending...')  # noqa: E303
 
 
 def main(ip):
@@ -562,14 +550,14 @@ def main(ip):
 
 
 
-def get_into_server(serv_ip):
+def get_into_server(server_ip):  # noqa: E303
     amount_of_tries = 10
     i = 0
     connected = False
     while not connected and i < amount_of_tries:
         i += 1
         try:
-            main(serv_ip)
+            main(server_ip)
             connected = True
             break
 
@@ -588,7 +576,7 @@ def get_into_server(serv_ip):
 
 
 
-if __name__ == '__main__':  # noqa E303
+if __name__ == '__main__':  # noqa: E303
     serv_ip = '127.0.0.1'
     if len(sys.argv) > 1:
         serv_ip = sys.argv[1]
