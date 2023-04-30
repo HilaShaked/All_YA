@@ -1,6 +1,5 @@
 import sys
 import socket
-import tkinter
 from random import randint
 import tkinter as tk
 from tkinter import ttk
@@ -20,7 +19,7 @@ entry_granted: bool = False
 
 key = 0
 
-server_disconnect = False
+server_disconnected = False
 
 user_name = ''
 
@@ -60,7 +59,7 @@ def login_and_sign_up_win(sock):
 
     frame.pack(expand=True, fill=tk.BOTH)
 
-    add_the_key_exchange_options(frame)
+    # add_the_key_exchange_options(frame)
 
 
     login = tk.Label(frame, text='Login', font=('Calibri', 32), bg=frame['bg'])  # noqa E303
@@ -103,6 +102,34 @@ def login_and_sign_up_win(sock):
 
 
     root.mainloop()  # noqa E303
+
+
+def key_exchange_win(sock):
+    print('beep\n\n')
+
+    root = tk.Tk()
+    root.title('Key exchange screen')
+
+    root.geometry(f'{1000}x{200}')
+    center_window(root)
+
+    frame = tk.Frame(root)
+    frame['bg'] = 'light blue'
+    frame.config(cursor='dot')  # just cuz I find it fun
+
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    add_the_key_exchange_options(frame)
+
+    submit = tk.Button(root, font=('Calibri', 16), text='submit')  # noqa E303
+    submit.place(relx=0.45, rely=0.6, anchor='nw', width=100, height=30)
+
+
+    submit['command'] = lambda: perform_key_exchange_and_stuff(sock, root)
+
+    root.mainloop()
+
+
 
 
 def add_the_key_exchange_options(root):  # noqa E303
@@ -172,7 +199,8 @@ def make_login_labels_and_entries(root, xpos):
 
 def make_server_error_screen(error_message):
     # print(len(error_message))
-    if len(error_message) > 29:
+    # if len(error_message) > 29:
+    if len(error_message) > 32:
         temp = error_message
         error_message = ''
         for i in range(1, len(temp) + 1):
@@ -207,16 +235,16 @@ def make_server_error_screen(error_message):
 
 
 def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
-    global key, server_disconnect
+    global key, server_disconnected, entry_granted, user_name
 
     print('Debug: In "login"')
 
     if actually_sign_up:
         print(name, pass_, 'sin')
-        to_send = 'sin'
+        to_send = 'SINUP'
     else:
         print(name, pass_, 'log')
-        to_send = 'log'
+        to_send = 'LOGIN'
 
     name = name.strip()
     pass_ = pass_.strip()
@@ -225,16 +253,52 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
 
     to_send = to_send, name, pass_
 
-    key = exchange_key(sock)
-
-    if key is None:
-        make_server_error_screen('Error at server')
-        # root.destroy()
-        server_disconnect = True
+    # exchange_key(sock)
+    #
+    # if key is None:
+    #     make_server_error_screen('Error at server')
+    # if key is None or key == 0:
+    #     root.destroy()
+    #     server_disconnected = True
+    #     return
+    #
+    # print(f'Debug: key = {key}')
+    send_to_server(sock, to_send)
+    if server_disconnected:
+        root.destroy()
         return
 
 
-    send_to_server(sock, to_send)
+    data, size = recv_by_size(sock)
+
+    if data == '' and size == 0:  # if '' the server disconnected
+        server_disconnected = True
+        root.destroy()
+        return
+
+
+    reply = handle_receive(data)
+
+    if isinstance(reply, str):
+        make_server_error_screen('Error at server')
+
+    access = reply[0] == 'True'
+
+    send_to_server(sock, ('ACK', f'Got {access}'), True)
+    if server_disconnected:
+        root.destroy()
+        return
+
+    if not access:
+        make_server_error_screen(reply[1])
+        return
+
+    entry_granted = True
+    user_name = name
+    root.destroy()
+
+
+
 
 
 
@@ -246,6 +310,23 @@ def loging(name: str, pass_: str, sock, root, actually_sign_up = False):
 #     if name == '' and pass_ == '':
 #         return
 #     key = exchange_key(root, sock)
+
+
+def perform_key_exchange_and_stuff(sock, root):
+    global key, server_disconnected
+
+    exchange_key(sock)
+
+    if key is None:
+        make_server_error_screen('Error at server')
+    if key is None or key == 0:
+        root.destroy()
+        server_disconnected = True
+        return
+
+    print(f'Debug: key = {key}')
+
+    root.destroy()
 
 
 
@@ -269,16 +350,20 @@ def exchange_key(sock):  # , username, password
 
 def RSA(sock):
     """
-    :return: None if got nothing,
+    :return: 0 if got nothing or an error,
             usually returns key
     """
     print('Debug: In "RSA"')
 
     cli_num = randint(657, 23651)
     send_to_server(sock, ('CHELO', f'{cli_num}'), False)
+    if server_disconnected:
+        return 0
+
     data, size = recv_by_size(sock, down_a_line=False)
-    if data == '' and size == 0:  # if '' so the server disconnected
-        return
+    if data == '' and size == 0:  # if '' the server disconnected
+        make_server_error_screen('Server disconnected')
+        return 0
 
     reply = handle_receive(data)
 
@@ -286,7 +371,7 @@ def RSA(sock):
     print(f'Debugh: {reply}')
     if isinstance(reply, str):
         make_server_error_screen(reply)
-        return
+        return 0
 
     srv_num, n, e = int(reply[0]), int(reply[1][0]), int(reply[1][1])
     print(f'Debug: num = {srv_num}, server key = {(n, e)}')
@@ -299,6 +384,16 @@ def RSA(sock):
 
 
     send_to_server(sock, ('CKEYX', ciphertext), False)
+    if server_disconnected:
+        return 0
+
+
+    wait_for_server_ack, size = recv_by_size(sock)
+    if wait_for_server_ack == '' and size == 0:
+        make_server_error_screen('Server disconnected')
+        return 0
+    ack = handle_receive(wait_for_server_ack)
+    print(f'\n{ack[0]} {ack[1]}\n')
 
     return make_AES_key(pms, cli_num, srv_num)
 
@@ -309,6 +404,7 @@ def diffie_hellman(sock):
 
 
 def send_to_server(sock, cont: tuple, encode: bool = True):
+    global server_disconnected
     print('Debug: In "send_to_server"')
 
     cont = FIELD_SEP.join(cont)
@@ -319,7 +415,13 @@ def send_to_server(sock, cont: tuple, encode: bool = True):
         print(f'Debug (check if decrypt works): {temp}')
 
     print(f'Debug (after encrypt): {cont}')
-    send_with_size(sock, cont)
+
+    try:
+        send_with_size(sock, cont)
+    except ConnectionError:
+        make_server_error_screen('server disconnected')
+        server_disconnected = True
+
 
 
 
@@ -335,12 +437,20 @@ def handle_receive(data):
 
 
         if code in ['ACK', 'SRFIN']:
-            ret = f'Ack. {fields[1]}'
+            ret = f'Ack.', fields[1]
 
         elif code == 'SHELO':
             num = fields[1]
             s_key = (fields[2], fields[3])
-            return num, s_key
+            ret = num, s_key
+
+        elif code == 'ACSES':
+            ret = fields[1], fields[2]
+
+        elif code == 'ERROR':
+            ret = 'Error', fields[1]
+            make_server_error_screen(fields[1])
+
 
     except Exception as e:
         print(f'Server replay bad format: {e}')
@@ -349,10 +459,16 @@ def handle_receive(data):
 
 def communicate(sock):
     print('Enter nothing to exit')
-    i = input(f'{user_name} send > ')
+
+    i = input(f'"{user_name}" send > ')
     while i != '':
-        send_to_server(sock, (i,))
-        i = input(f'{user_name} send > ')
+        send_to_server(sock, ('MESG', user_name,i))
+        if server_disconnected:
+            break
+
+        i = input(f'"{user_name}" send > ')
+
+
     print('Finish sending...')
 
 
@@ -361,9 +477,11 @@ def main(ip):
     s = socket.socket()
     s.connect((ip, PORT))
 
-    login_and_sign_up_win(s)
-    print('Finished login')
-    if not server_disconnect:
+    key_exchange_win(s)
+    if not server_disconnected:
+        login_and_sign_up_win(s)
+        print('Finished login')
+    if not server_disconnected:
         if entry_granted:
             communicate(s)
 
