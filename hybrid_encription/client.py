@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from tcp_by_size import recv_by_size, send_with_size
 from the_encryption_stuff import make_AES_key, AES_encrypt, AES_decrypt
+from the_encryption_stuff import randprime, prime_roots
 from the_encryption_stuff import encode_pms
 
 
@@ -382,7 +383,7 @@ def RSA(sock):
         make_server_error_screen(reply)
         return 0
 
-    srv_num, n, e = int(reply[0]), int(reply[1][0]), int(reply[1][1])
+    srv_num, n, e = reply[0], reply[1][0], reply[1][1]
     print(f'Debug: num = {srv_num}, server key = {(n, e)}')
 
     # pms = randint(0, 2**(8*48))
@@ -407,7 +408,45 @@ def RSA(sock):
 
 
 def diffie_hellman(sock):
-    pass
+    """
+    returns 0 if there's an error, otherwise it returns the key
+    """
+    print('Debug: In "diffie_hellman"')
+    send_to_server(sock, ('CKDH',), False)
+
+
+    data, size = recv_from_server(sock)
+    if data == '' and size == 0:  # if '' the server disconnected
+        return 0
+
+    reply = handle_receive(data)
+
+    print(f'Debugh: {reply}')
+    if isinstance(reply, str):
+        make_server_error_screen(reply)
+        return 0
+
+    P, G, server_key = reply[0], reply[1], reply[2]
+    print(f'Debug: P = {P}, G = {G}, server key = {server_key}')
+    # print(f'Debug: P = {type(P)}, G = {type(G)}, server key = {type(server_key)}')
+
+    private_key = randint(321, 2354)
+    public_key = int(pow(G, private_key, P))
+    print(f'Debug: public_key = {public_key}, private_key = {private_key}')
+
+
+    send_to_server(sock, ('CDHPK', str(public_key)), False)
+
+    sim_key = int(pow(server_key, private_key, P))
+    print(f'Debug: sim_key = {sim_key}')
+
+    wait_for_server_ack, size = recv_from_server(sock)
+    if wait_for_server_ack == '' and size == 0:
+        return 0
+
+    handle_receive(wait_for_server_ack)
+
+    return make_AES_key(sim_key, P, G)
 
 
 
@@ -443,7 +482,7 @@ def recv_from_server(sock, recv_encoded=False):
 
 
 
-def handle_receive(data):
+def handle_receive(data) -> str or int or tuple:
     ret = 'Invalid reply from server',
     try:
         # reply = reply.decode()
@@ -455,16 +494,19 @@ def handle_receive(data):
 
 
         if code in ['ACK', 'SRFIN']:
-            ret = f'Ack.', fields[1]
+            ret = f'Ack.', fields[1]  # additional message
             print(f'Ack. {fields[1]}')
 
         elif code == 'SHELO':
-            num = fields[1]
-            s_key = (fields[2], fields[3])
+            num = int(fields[1])
+            s_key = int(fields[2]), int(fields[3])
             ret = num, s_key
 
         elif code == 'ACSES':
-            ret = fields[1], fields[2]
+            ret = fields[1], fields[2]  # (a string) True or False, additional message
+
+        elif code == 'SPGPK':
+            ret = int(fields[1]), int(fields[2]), int(fields[3]) # P, G, public key
 
         elif code == 'ERROR':
             ret = 'Error', fields[1]

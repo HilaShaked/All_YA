@@ -2,10 +2,9 @@ import socket
 import threading
 import traceback
 from random import randint
-from sympy import randprime
 from tcp_by_size import recv_by_size, send_with_size
 from the_encryption_stuff import calc_d, calc_e, decode_pms
-from the_encryption_stuff import prim_roots
+from the_encryption_stuff import prime_roots, randprime
 from the_encryption_stuff import make_AES_key, AES_decrypt, AES_encrypt
 
 
@@ -25,22 +24,25 @@ field separator = '@|@'
 Key exchange part:
 ******************
 From client:
+-RSA
 CHELO (client hello) = start of key exchange with RSA. fields: 1- a random number
 CKEYX (client key exchange) = after 'SHELO' message from server. fields: 1- the encrypted premaster secret
 
-
-CKDIF = (client key Diffie Hellman) key exchange with Diffie Hellman. no additional fields
-
+-DH
+CKDH (client key Diffie Hellman) = key exchange with Diffie Hellman. no additional fields
+CDHPK (client Diffie Hellman public key) = client's public key. fields: 1- the public key (an int)
 
 ----------------
 
 From server:
+-RSA
 SHELO (server hello) = after 'CHELO' from client. fields: 1- a random number, 2- the n of server's public key
                                                                                 3- the e of server's public key 
 SRFIN (server finish) = an ack after client's 'CKEYX' message. fields: 1- 'Finished RSA key exchange'
 
-
-
+-DH
+SPGPK (server G P public key) = sending to client the P, G and the server's public key. fields: 1- the P, 2- the G, 
+                                                                                            3- the server's public key 
 
 ------------------------------
 everything else:
@@ -105,20 +107,42 @@ def RSA(sock, addr, num_from_cli):  # noqa
     return make_AES_key(pms, num_from_cli, ran_num)
 
 
-def diffie_hellman(sock):
+def diffie_hellman(sock, addr):
     P = randprime(500, 1000)  # noqa
     # print(P)
-    roots = prim_roots(P)
+    roots = prime_roots(P)
     G = roots[randint(0, len(roots) - 1)]  # noqa
 
-    # send P and G
-    # client also calc private and public keys
 
     private_key = randint(42, 23651)  # 657
     public_key = int(pow(G, private_key, P))
 
-    # send public k
-    #
+    print(f'Debug: public_key = {public_key}, private_key = {private_key}')
+    print(f'Debug: P = {P}, G = {G}')
+
+    send_data(sock, addr, ('SPGPK', P, G, public_key))
+
+    # getting client's public key
+    data = receive_from_client(sock, addr, return_size=False, decode=False)
+    if data is None:
+        return
+
+    reply = parse_receive(data)[0]
+    print(f'Debug: reply = {reply}')
+
+    if reply is None:
+        return
+
+    client_key = int(reply)
+    sim_key = int(pow(client_key, private_key, P))
+    print(f'Debug: sim_key = {sim_key}')
+
+    send_data(sock, addr, ('ACK', 'Finished DH key exchange'))
+
+    return make_AES_key(sim_key, P, G)
+
+    
+
 
 
 def send_data(sock, addr, to_send, key=0) -> bool:
@@ -157,8 +181,11 @@ def parse_receive(data) -> tuple:
         elif code == 'CKEYX':
             return fields[1],
 
-        elif code == 'CKDIF':
+        elif code == 'CKDH':
             return 'DIFF',
+
+        elif code == 'CDHPK':
+            return int(fields[1]),
 
         elif code == 'ACK':
             return 'Ack', fields[1]
@@ -254,7 +281,7 @@ def key_exchange(sock, addr):
     if reply[0] == 'RSA':
         return RSA(sock, addr, reply[1])
     elif reply[0] == 'DIFF':
-        return diffie_hellman(sock)
+        return diffie_hellman(sock, addr)
     else:
         return None
 

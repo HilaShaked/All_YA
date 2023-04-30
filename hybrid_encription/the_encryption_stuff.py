@@ -42,7 +42,7 @@ def encode_pms(pms, n, e):
 
 
 def decode_pms(ciphertext, d, n):
-    print(f'Debug: In "decode_pms"')
+    # print(f'Debug: In "decode_pms"')
 
     pms = 0
     ciphertext = ciphertext.split('-')
@@ -53,20 +53,13 @@ def decode_pms(ciphertext, d, n):
         pms *= 10
         pms += int(i)**d % n
         # print('.', end=' ')
-    print(f'Debug: pms = {pms}')
+    # print(f'Debug: num = {num}')
     return pms
-
-
-def make_AES_key(pms, client_num, server_num):
-    key = pbkdf2.PBKDF2(f'{pms}', f'{client_num}', server_num).read(32)
-    # print(len(key))
-
-    return key
 
 
 
 # for diffie-hellman
-def prim_roots(num):
+def prime_roots(num):
     o = 1
     roots_ls = []
     r = 2
@@ -84,6 +77,13 @@ def prim_roots(num):
 
 
 # for AES
+def make_AES_key(num, salt, iteration_num):
+    key = pbkdf2.PBKDF2(f'{num}', f'{salt}', iteration_num).read(32)
+    # print(len(key))
+
+    return key
+
+
 def AES_encrypt(msg, key):
     AES = pyaes.AESModeOfOperationCTR(key)
     return AES.encrypt(msg)
